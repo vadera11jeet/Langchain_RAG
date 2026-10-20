@@ -1,7 +1,7 @@
 from rag_pipeline.pre_processing.cleaning import cleaning_process
 from rag_pipeline.data_parsing import PdfParser
-from typing import Literal, List
-from pathlib import Path
+from typing import Literal, List, Tuple
+from uuid import uuid4
 from langchain_core.documents import Document
 from langchain_text_splitters import (
     MarkdownHeaderTextSplitter,
@@ -21,9 +21,8 @@ class ChunkingStrategies:
         unprocessed_doc_lists: List[List[Document]] = parser.load_documents_from_dir(
             dir_path=dir_path.resolve(), mode=mode
         )
-        print(unprocessed_doc_lists)
 
-        self.docs: List[List[Document]] = cleaning_process(unprocessed_doc_lists)
+        self.docs: List[Document] = cleaning_process(unprocessed_doc_lists)
 
     def markdown_recursive_chunking(self) -> List[Document]:
         """
@@ -64,8 +63,7 @@ class ChunkingStrategies:
             chunk_size=1000,
             chunk_overlap=250,
         )
-        print("printing the self docs")
-        print(self.docs)
+
         header_chunks = []
 
         for doc in self.docs:
@@ -83,7 +81,7 @@ class ChunkingStrategies:
 
         return final_chunks
 
-    def parent_child_chunking(self):
+    def parent_child_chunking(self) -> Tuple[List[Document], List[Document]]:
 
         parent_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1200,
@@ -94,7 +92,38 @@ class ChunkingStrategies:
         child_splitter = RecursiveCharacterTextSplitter(
             chunk_size=400,
             chunk_overlap=50,
-            separators=[". ", "? ", "! ", "\n", " ", ""],
+            separators=["\n\n", "\n", ". ", " "],
         )
 
-        # parent
+        parent_chunks: List[Document] = []
+        children_chunks: List[Document] = []
+
+        for doc in self.docs:
+            parent_docs = parent_splitter.split_documents([doc])
+
+            for parent in parent_docs:
+                parent_id = str(uuid4())
+
+                parent.metadata = {
+                    **parent.metadata,
+                    **doc.metadata,
+                    "chunk_type": "parent",
+                    "parent_id": parent_id,
+                }
+
+                parent_chunks.append(parent)
+
+                child_docs = child_splitter.split_documents([parent])
+
+                for child in child_docs:
+
+                    child.metadata = {
+                        **child.metadata,
+                        "chunk_type": "child",
+                        "parent_id": parent_id,
+                        "child_id": str(uuid4()),
+                    }
+
+                    children_chunks.append(child)
+
+        return parent_chunks, children_chunks

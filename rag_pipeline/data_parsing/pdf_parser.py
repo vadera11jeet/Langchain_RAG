@@ -36,8 +36,8 @@ class PdfParser:
             return pdf_loader.load()
 
         except Exception as e:
-            print("printing error ")
-            print(e)
+            print(f"failed to parse {file_path}: {e}")
+            return None
 
     def load_documents_from_dir(
         self,
@@ -46,8 +46,6 @@ class PdfParser:
         mode: Literal["page", "single"] = "single",
         extract_images: bool = False,
     ) -> Union[list[Document], Iterator[Document]]:
-
-        print(dir_path)
 
         folder_path = Path(dir_path)
 
@@ -61,6 +59,8 @@ class PdfParser:
                 mode=mode,
                 extract_images=extract_images,
             )
+            if doc is None:
+                continue
             docs.append(doc)
 
         return docs
@@ -69,12 +69,8 @@ class PdfParser:
 if __name__ == "__main__":
     parser = PdfParser()
     doc_lists: list[list[Document]] = parser.load_documents_from_dir("../../docs")
-    print(f"length of documents are {len(doc_lists)}")
-    print("*" * 6)
 
     for number, docs in enumerate(doc_lists):
-        print(f"length of each doc {len(docs)}")
         for i, doc in enumerate(docs):
             with open(f"{number+1}.txt", "a", encoding="utf-8") as file:
-                print(doc.metadata)
                 file.write(doc.page_content)
